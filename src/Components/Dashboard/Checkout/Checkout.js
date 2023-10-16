@@ -1,0 +1,211 @@
+import CssBaseline from '@mui/material/CssBaseline';
+import Box from '@mui/material/Box';
+import Container from '@mui/material/Container';
+import Paper from '@mui/material/Paper';
+import Stepper from '@mui/material/Stepper';
+import Step from '@mui/material/Step';
+import StepLabel from '@mui/material/StepLabel';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import AddressForm from './AddressForm';
+import Review from './Review';
+import React, { useEffect, useState } from 'react';
+import Axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../Auth/AuthContext/AuthContext'
+import { Link } from 'react-router-dom';
+import './Checkout.css'
+
+function Copyright() {
+  return (
+    <Typography variant="body2" color="text.secondary" align="center">
+      {'Copyright © '}
+      <Link to="/index" color="inherit">
+        Garden Grove
+      </Link>{' '}
+      {new Date().getFullYear()}
+      {'.'}
+    </Typography>
+  );
+}
+
+const steps = ['Shipping address', 'Review your order'];
+
+function getStepContent(step, cartItems, bill, addressDetails, handleAddressFormChange) {
+
+  switch (step) {
+    case 0:
+      return <AddressForm addressDetails={addressDetails}
+        onChange={handleAddressFormChange} />;
+    case 1:
+      return <Review cartItems={cartItems} bill={bill} addressDetails={addressDetails} />;
+    default:
+      throw new Error('Unknown step');
+  }
+}
+
+function EmptyCartMessage() {
+  return (
+    <Typography variant="h6" align="center" style={{ margin: '10px' }}>
+      Your cart is empty. Add some items to your cart!
+    </Typography>
+  );
+}
+
+export default function Checkout({ cartItems, setCartItems, bill }) {
+
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [addressDetails, setAddressDetails] = React.useState({
+    firstName: '',
+    lastName: '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    country: '',
+    saveAddress: ''
+  });
+
+  const handleAddressFormChange = (newAddressDetails) => {
+    setAddressDetails(newAddressDetails);
+  };
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+    }
+  }, [user, navigate]);
+
+
+  const [activeStep, setActiveStep] = React.useState(0);
+
+  const handleNext = () => {
+    setActiveStep(activeStep + 1);
+  };
+
+  const handleBack = () => {
+    setActiveStep(activeStep - 1);
+  };
+
+
+  const RAZOR_PAY_KEY_ID="rzp_test_Fo9DGjTaOK5EDP";
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  const paymentHandler = async (e) => {
+    const API_URL = 'http://localhost:4000/'
+    e.preventDefault();
+    const orderUrl = `${API_URL}order`;
+    const response = await Axios.get(orderUrl);
+    const { data } = response;
+    const options = {
+      key: RAZOR_PAY_KEY_ID,
+      name: "Garden Grove",
+      description: "Payment",
+      order_id: data.id,
+      handler: async (response) => {
+        try {
+          const paymentId = response.razorpay_payment_id;
+          const url = `${API_URL}capture/${paymentId}`;
+          const captureResponse = await Axios.post(url, {})
+          console.log(captureResponse.data);
+          setPaymentSuccess(true);
+          setCartItems([]);
+          
+        } catch (err) {
+          console.log(err);
+        }
+      },
+      theme: {
+        color: "#686CFD",
+      },
+    };
+    const rzp1 = new window.Razorpay(options);
+    rzp1.open();
+  };
+
+
+  return (
+    <div style={{ backgroundColor: '#d1fce2', minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
+      <CssBaseline />
+      <Container component="main" maxWidth="sm" sx={{ mb: 4 }} >
+        <Paper variant="outlined" sx={{ my: { xs: 3, md: 6 }, p: { xs: 2, md: 3 } }} style={{ backgroundColor: '#faf3ef', borderRadius: '20px' }}>
+          {paymentSuccess?(<div></div>):(          
+          <Typography component="h1" variant="h4" align="center">
+            Checkout
+          </Typography>
+          )}
+          {cartItems.length === 0 ? (
+            <div>
+            {paymentSuccess ? (
+              <div style={{ textAlign:'center'}}>
+              <React.Fragment>
+                <Typography variant="h4" gutterBottom style={{marginTop:'20px', marginBottom:'20px'}}>
+                  Thank you for your order.
+                </Typography>
+                <Typography variant="subtitle1">
+                  Your order number is #2001539. We have emailed your order
+                  confirmation, and will send you an update when your order has
+                  shipped.
+                </Typography>
+                <br />
+                <div class="d-grid gap-2">
+                  <Link to="/index" class="btn btn-secondary" style={{ color: "white" }} >Home</Link>
+                </div>
+              </React.Fragment>
+              </div>
+            ):(<EmptyCartMessage />)}
+            </div>
+          ) : (
+            <>
+              <Stepper activeStep={activeStep} sx={{ pt: 3, pb: 5 }}>
+                {steps.map((label) => (
+                  <Step key={label}>
+                    <StepLabel>{label}</StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
+              {activeStep === steps.length ? (
+                <React.Fragment>
+                  <Typography variant="h5" gutterBottom>
+                    Thank you for your order.
+                  </Typography>
+                  <Typography variant="subtitle1">
+                    Your order number is #2001539. We have emailed your order
+                    confirmation, and will send you an update when your order has
+                    shipped.
+                  </Typography>
+                  <br />
+                  <div class="d-grid gap-2">
+                    <Link to="/index" class="btn btn-secondary" style={{ color: "white" }} >Home</Link>
+                  </div>
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                  {getStepContent(activeStep, cartItems, bill, addressDetails, handleAddressFormChange)}
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    {activeStep !== 0 && (
+                      <Button onClick={handleBack} sx={{ mt: 3, ml: 1 }}>
+                        Back
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="contained"
+                      onClick={activeStep === steps.length - 1 ? paymentHandler : handleNext}
+                      sx={{ mt: 3, ml: 1 }}
+                    >
+                      {activeStep === steps.length - 1 ? 'Proceed To Payment' : 'Next'}
+                    </Button>
+                  </Box>
+                </React.Fragment>
+              )}
+            </>
+          )}
+        </Paper>
+        <Copyright />
+      </Container>
+    </div>
+  );
+}
